@@ -1,0 +1,662 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   GameMomentsLive — Shared Design System
+   Retro 80s / Tecmo scoreboard aesthetic
+   ───────────────────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+/* ── Custom Properties ──────────────────────────────────────────────────────── */
+
+:root {
+  /* Base palette */
+  --bg:         #0d0d1a;
+  --surface:    #1a1a2e;
+  --surface2:   #16213e;
+  --border:     #2a2a50;
+
+  /* Team colours */
+  --pfc:        #00e5ff;
+  --pfc-dim:    #006a77;
+  --pfc-bg:     rgba(0, 229, 255, 0.08);
+
+  --opp:        #ff3b3b;
+  --opp-dim:    #7a1c1c;
+  --opp-bg:     rgba(255, 59, 59, 0.08);
+
+  /* Goal gold */
+  --goal-gold:  #ffd700;
+  --goal-bg:    rgba(255, 215, 0, 0.07);
+
+  /* Text */
+  --text:       #e2e2e2;
+  --text-dim:   #888;
+  --text-muted: #555;
+
+  /* Accent */
+  --success:    #00ff88;
+  --accent:     #7c3aed;
+  --warn:       #ffb800;
+
+  /* Scoreboard phosphor green */
+  --sb-bg:      #0b140b;
+
+  /* Event tally accent colours */
+  --tally-ko:   var(--pfc);
+  --tally-so:   var(--pfc);
+  --tally-gk:   #b47aff;
+  --tally-ck:   #44e090;
+  --tally-fk:   #22d3c8;
+  --tally-goal: var(--goal-gold);
+
+  /* Typography */
+  --font-pixel: 'Press Start 2P', 'Courier New', monospace;
+  --font-vt:    'VT323', 'Courier New', monospace;
+  --font-ui:    'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Safe area insets (notch) */
+  --safe-top:    env(safe-area-inset-top,    0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left:   env(safe-area-inset-left,   0px);
+  --safe-right:  env(safe-area-inset-right,  0px);
+}
+
+/* ── Reset ──────────────────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Global ─────────────────────────────────────────────────────────────────── */
+
+html {
+  height: 100%;
+  font-size: 16px;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* CRT scanline overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent         0px,
+    transparent         3px,
+    rgba(0, 0, 0, 0.03) 3px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* ── Screens ────────────────────────────────────────────────────────────────── */
+
+.screen {
+  display: none;
+  height: 100dvh;
+  flex-direction: column;
+}
+
+.screen.active {
+  display: flex;
+}
+
+/* ── Scoreboard Header ──────────────────────────────────────────────────────── */
+
+.log-header {
+  flex-shrink: 0;
+  background-color: var(--sb-bg);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent      0px,
+    transparent      3px,
+    rgba(0, 0, 0, 0.13) 3px,
+    rgba(0, 0, 0, 0.13) 4px
+  );
+  border-bottom: 2px solid rgba(0, 229, 255, 0.75);
+  border-top: 1px solid rgba(0, 229, 255, 0.18);
+  padding: calc(10px + var(--safe-top)) 12px 10px;
+}
+
+/* ── HUD Row: Half + Clock + Opponent ───────────────────────────────────────── */
+
+.hud-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.half-badge {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--pfc);
+  background: rgba(0, 229, 255, 0.07);
+  border: 1.5px solid rgba(0, 229, 255, 0.55);
+  border-radius: 2px;
+  padding: 6px 9px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.7);
+  box-shadow:
+    0 0 6px rgba(0, 229, 255, 0.12),
+    inset 0 0 4px rgba(0, 229, 255, 0.06);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.clock-display {
+  font-family: var(--font-vt);
+  font-size: 58px;
+  line-height: 1;
+  color: var(--pfc);
+  letter-spacing: 6px;
+  padding: 3px 12px 5px;
+  background: rgba(0, 0, 0, 0.40);
+  border: 1px solid rgba(0, 229, 255, 0.22);
+  border-radius: 2px;
+  text-shadow:
+    0 0  4px rgba(0, 229, 255, 1.0),
+    0 0 10px rgba(0, 229, 255, 0.85),
+    0 0 24px rgba(0, 229, 255, 0.45),
+    0 0 48px rgba(0, 229, 255, 0.15);
+  white-space: nowrap;
+}
+
+.log-opp {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--pfc-dim);
+  text-align: right;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Score Strip ─────────────────────────────────────────────────────────────── */
+
+.hud-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 2px 0 4px;
+}
+
+.hud-team-label {
+  font-family: var(--font-pixel);
+  font-size: 8px;
+  letter-spacing: 1px;
+  flex: 1;
+}
+
+.hud-pfc {
+  color: var(--pfc);
+  text-align: right;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+.hud-opp {
+  color: var(--opp);
+  text-align: left;
+  text-shadow: 0 0 8px rgba(255, 59, 59, 0.6);
+}
+
+.hud-score {
+  font-family: var(--font-vt);
+  font-size: 36px;
+  line-height: 1;
+  color: var(--goal-gold);
+  min-width: 30px;
+  text-align: center;
+  text-shadow:
+    0 0  4px rgba(255, 215, 0, 0.95),
+    0 0 14px rgba(255, 215, 0, 0.40);
+}
+
+.hud-divider {
+  font-family: var(--font-vt);
+  font-size: 30px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+/* ── Event Grid ─────────────────────────────────────────────────────────────── */
+
+.event-grid {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 82px 1fr 1fr;
+  gap: 6px;
+  align-items: center;
+}
+
+.event-row-label {
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--text-dim);
+  text-align: right;
+  padding-right: 6px;
+  line-height: 1.5;
+}
+
+.event-row-tally {
+  display: block;
+  font-family: var(--font-vt);
+  font-size: 16px;
+  line-height: 1.1;
+  color: var(--pfc);
+  margin-top: 1px;
+}
+
+/* Tally accent colours per event family */
+.event-row-goal   .event-row-tally { color: var(--tally-goal); }
+.event-row-kickoff .event-row-tally,
+.event-row-sideout .event-row-tally { color: var(--tally-ko); }
+.event-row-goal_kick .event-row-tally { color: var(--tally-gk); }
+.event-row-corner  .event-row-tally { color: var(--tally-ck); }
+.event-row-free_kick .event-row-tally { color: var(--tally-fk); }
+
+/* ── Event Buttons ──────────────────────────────────────────────────────────── */
+
+.btn-event {
+  height: 52px;
+  border-radius: 4px;
+  border: 2px solid;
+  cursor: pointer;
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+  transition: transform 0.06s, box-shadow 0.06s;
+  touch-action: manipulation;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.event-row-goal .btn-event {
+  height: 58px;
+  border-width: 3px;
+}
+
+.btn-pfc {
+  background: var(--pfc-bg);
+  border-color: var(--pfc);
+  color: var(--pfc);
+  box-shadow: 0 3px 0 var(--pfc-dim);
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+}
+
+.btn-opp {
+  background: var(--opp-bg);
+  border-color: var(--opp);
+  color: var(--opp);
+  box-shadow: 0 3px 0 var(--opp-dim);
+  text-shadow: 0 0 6px rgba(255, 59, 59, 0.5);
+}
+
+.event-row-goal .btn-pfc,
+.event-row-goal .btn-opp {
+  background: var(--goal-bg);
+  border-color: var(--goal-gold);
+  color: var(--goal-gold);
+  box-shadow: 0 3px 0 #8a6800;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.7);
+}
+
+.btn-event:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.btn-event:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* Flash animations */
+@keyframes flash-pfc {
+  0%   { background: var(--pfc-bg); }
+  30%  { background: rgba(0, 229, 255, 0.6); color: #000; border-color: var(--pfc); }
+  100% { background: var(--pfc-bg); }
+}
+
+@keyframes flash-opp {
+  0%   { background: var(--opp-bg); }
+  30%  { background: rgba(255, 59, 59, 0.6); color: #000; border-color: var(--opp); }
+  100% { background: var(--opp-bg); }
+}
+
+@keyframes flash-goal {
+  0%   { background: var(--goal-bg); }
+  30%  { background: rgba(255, 215, 0, 0.55); color: #000; border-color: var(--goal-gold); }
+  100% { background: var(--goal-bg); }
+}
+
+.btn-pfc.flash             { animation: flash-pfc  0.28s ease-out; }
+.btn-opp.flash             { animation: flash-opp  0.28s ease-out; }
+.event-row-goal .btn-pfc.flash,
+.event-row-goal .btn-opp.flash { animation: flash-goal 0.28s ease-out; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────────── */
+
+.log-footer {
+  flex-shrink: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 8px 12px calc(8px + var(--safe-bottom));
+}
+
+.recent-log {
+  min-height: 52px;
+  margin-bottom: 6px;
+}
+
+.recent-placeholder {
+  font-family: var(--font-vt);
+  font-size: 18px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 10px 0;
+}
+
+.recent-event {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 3px;
+  margin-bottom: 2px;
+  font-family: var(--font-vt);
+  font-size: 17px;
+}
+
+.re-pfc  { background: var(--pfc-bg);  color: var(--pfc);       }
+.re-opp  { background: var(--opp-bg);  color: var(--opp);       }
+.re-goal { background: var(--goal-bg); color: var(--goal-gold); font-size: 19px; }
+
+.re-period {
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  opacity: 0.7;
+  min-width: 18px;
+}
+
+.re-time {
+  opacity: 0.8;
+  min-width: 38px;
+}
+
+.re-label {
+  flex: 1;
+}
+
+/* ── Footer Controls ────────────────────────────────────────────────────────── */
+
+.footer-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.btn-undo {
+  height: 40px;
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-undo:hover:not(:disabled) {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.btn-undo:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.start-hint {
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  color: var(--text-muted);
+  text-align: center;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.btn-start-h1 {
+  width: 100%;
+  padding: 12px;
+  background: rgba(0, 229, 255, 0.07);
+  border: 2px solid var(--pfc);
+  border-radius: 4px;
+  color: var(--pfc);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--pfc-dim);
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+  transition: transform 0.06s, box-shadow 0.06s;
+}
+
+.btn-start-h1:active {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 transparent;
+}
+
+.btn-half2 {
+  width: 100%;
+  padding: 10px;
+  background: rgba(0, 229, 255, 0.05);
+  border: 1.5px solid rgba(0, 229, 255, 0.5);
+  border-radius: 4px;
+  color: var(--pfc);
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-half2:hover {
+  background: rgba(0, 229, 255, 0.10);
+}
+
+.btn-end-game {
+  width: 100%;
+  padding: 10px;
+  background: rgba(255, 59, 59, 0.06);
+  border: 1.5px solid var(--opp);
+  border-radius: 4px;
+  color: var(--opp);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-end-game:hover {
+  background: rgba(255, 59, 59, 0.12);
+}
+
+/* ── Connection Status Bar ──────────────────────────────────────────────────── */
+
+.conn-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-muted);
+  transition: background 0.3s;
+}
+
+.conn-dot.online  { background: var(--success); box-shadow: 0 0 5px var(--success); }
+.conn-dot.offline { background: var(--opp);     box-shadow: 0 0 5px var(--opp);     }
+.conn-dot.syncing { background: var(--warn);    box-shadow: 0 0 5px var(--warn);    }
+
+.conn-label {
+  font-family: var(--font-pixel);
+  font-size: 6px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.conn-label.online  { color: var(--success); }
+.conn-label.offline { color: var(--opp);     }
+.conn-label.syncing { color: var(--warn);    }
+
+/* ── Goal Flash Overlay ─────────────────────────────────────────────────────── */
+
+#goal-flash {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 215, 0, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 50;
+  transition: opacity 0.1s ease-out;
+}
+
+#goal-flash.show { opacity: 1; }
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: calc(110px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface2);
+  border: 1px solid var(--pfc);
+  border-radius: 20px;
+  color: var(--pfc);
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  padding: 10px 18px;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Utility ────────────────────────────────────────────────────────────────── */
+
+.hidden { display: none !important; }
+
+/* ── Loading / Error screens ────────────────────────────────────────────────── */
+
+.center-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 24px;
+  gap: 16px;
+  text-align: center;
+}
+
+.center-screen h1 {
+  font-family: var(--font-pixel);
+  font-size: 10px;
+  color: var(--pfc);
+  letter-spacing: 1px;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.5);
+  line-height: 1.8;
+}
+
+.center-screen p {
+  font-family: var(--font-vt);
+  font-size: 20px;
+  color: var(--text-dim);
+}
+
+.center-screen .error-title {
+  color: var(--opp);
+  text-shadow: 0 0 8px rgba(255, 59, 59, 0.5);
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--pfc);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Final / FT badge ───────────────────────────────────────────────────────── */
+
+.ft-banner {
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 3px;
+  padding: 4px 12px;
+  font-family: var(--font-pixel);
+  font-size: 7px;
+  color: var(--goal-gold);
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+  text-align: center;
+  margin-top: 4px;
+}

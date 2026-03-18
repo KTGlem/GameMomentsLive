@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameMomentsLive — Admin</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    body {
+      min-height: 100dvh;
+      padding: 0;
+    }
+
+    .page {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: calc(20px + var(--safe-top)) 16px calc(20px + var(--safe-bottom));
+    }
+
+    .page-title {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--pfc);
+      letter-spacing: 1px;
+      text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+      margin-bottom: 4px;
+    }
+
+    .page-subtitle {
+      font-family: var(--font-vt);
+      font-size: 20px;
+      color: var(--text-dim);
+      margin-bottom: 28px;
+    }
+
+    /* ── Create Game Form ── */
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 28px;
+    }
+
+    .card-title {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--pfc);
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="date"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 4px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: var(--font-vt);
+      font-size: 20px;
+      outline: none;
+      transition: border-color 0.15s;
+      color-scheme: dark;
+    }
+
+    input[type="text"]:focus,
+    input[type="date"]:focus {
+      border-color: var(--pfc);
+      box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.12);
+    }
+
+    input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .btn-create {
+      width: 100%;
+      padding: 14px;
+      background: rgba(0, 229, 255, 0.08);
+      border: 2px solid var(--pfc);
+      border-radius: 4px;
+      color: var(--pfc);
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      box-shadow: 0 3px 0 var(--pfc-dim);
+      text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+      transition: transform 0.06s, box-shadow 0.06s;
+      margin-top: 6px;
+    }
+
+    .btn-create:hover {
+      background: rgba(0, 229, 255, 0.12);
+    }
+
+    .btn-create:active {
+      transform: translateY(3px);
+      box-shadow: 0 0 0 transparent;
+    }
+
+    .btn-create:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── Result Links ── */
+
+    #result-section {
+      background: rgba(0, 255, 136, 0.04);
+      border: 1.5px solid rgba(0, 255, 136, 0.35);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 28px;
+    }
+
+    .result-title {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--success);
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .link-block {
+      margin-bottom: 14px;
+    }
+
+    .link-label {
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      color: var(--text-dim);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .link-row {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .link-value {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-family: var(--font-vt);
+      font-size: 16px;
+      color: var(--pfc);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .link-value.opp-color {
+      color: var(--opp);
+    }
+
+    .btn-copy {
+      flex-shrink: 0;
+      padding: 0 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-dim);
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .btn-copy:hover {
+      border-color: var(--pfc);
+      color: var(--pfc);
+    }
+
+    .btn-copy.copied {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    /* ── Games List ── */
+
+    .games-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .game-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 12px 14px;
+    }
+
+    .game-row-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .game-teams {
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--text);
+      letter-spacing: 0.5px;
+    }
+
+    .game-teams .team-pfc { color: var(--pfc); }
+    .game-teams .team-opp { color: var(--opp); }
+
+    .game-status-badge {
+      font-family: var(--font-pixel);
+      font-size: 5px;
+      letter-spacing: 0.5px;
+      padding: 3px 7px;
+      border-radius: 2px;
+      border: 1px solid;
+    }
+
+    .game-status-badge.pending {
+      color: var(--text-muted);
+      border-color: var(--text-muted);
+    }
+
+    .game-status-badge.live {
+      color: var(--success);
+      border-color: var(--success);
+      animation: pulse-badge 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-badge {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.6; }
+    }
+
+    .game-status-badge.final {
+      color: var(--text-dim);
+      border-color: var(--border);
+    }
+
+    .game-meta {
+      font-family: var(--font-vt);
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .game-score {
+      font-family: var(--font-vt);
+      font-size: 22px;
+      color: var(--goal-gold);
+      margin-bottom: 8px;
+    }
+
+    .game-links {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .game-link-btn {
+      flex: 1;
+      min-width: 100px;
+      padding: 6px 10px;
+      border-radius: 3px;
+      border: 1px solid;
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      text-decoration: none;
+      text-align: center;
+      display: block;
+    }
+
+    .game-link-btn.logger {
+      background: rgba(0, 229, 255, 0.05);
+      border-color: rgba(0, 229, 255, 0.5);
+      color: var(--pfc);
+    }
+
+    .game-link-btn.scoreboard {
+      background: rgba(255, 59, 59, 0.05);
+      border-color: rgba(255, 59, 59, 0.4);
+      color: var(--opp);
+    }
+
+    .game-link-btn:hover {
+      opacity: 0.8;
+    }
+
+    .empty-state {
+      font-family: var(--font-vt);
+      font-size: 20px;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    .error-msg {
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--opp);
+      margin-top: 10px;
+      padding: 8px;
+      background: rgba(255, 59, 59, 0.05);
+      border: 1px solid rgba(255, 59, 59, 0.3);
+      border-radius: 3px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1 class="page-title">GAMEMOMENTSLIVE</h1>
+    <p class="page-subtitle">Admin — Create &amp; Manage Games</p>
+
+    <!-- Create Game -->
+    <div class="card">
+      <div class="card-title">NEW GAME SESSION</div>
+      <form id="create-form">
+        <div class="form-group">
+          <label for="f-date">DATE</label>
+          <input type="date" id="f-date" name="date">
+        </div>
+        <div class="form-group">
+          <label for="f-team">YOUR TEAM NAME</label>
+          <input type="text" id="f-team" name="team_name" value="PFC" placeholder="PFC">
+        </div>
+        <div class="form-group">
+          <label for="f-opponent">OPPONENT *</label>
+          <input type="text" id="f-opponent" name="opponent" placeholder="City FC" required>
+        </div>
+        <div class="form-group">
+          <label for="f-venue">VENUE (optional)</label>
+          <input type="text" id="f-venue" name="venue" placeholder="Home Park">
+        </div>
+        <button type="submit" class="btn-create" id="btn-create">CREATE GAME SESSION</button>
+        <div class="error-msg" id="create-error"></div>
+      </form>
+    </div>
+
+    <!-- Result -->
+    <div id="result-section" class="hidden">
+      <div class="result-title">GAME CREATED — SHARE LINKS</div>
+
+      <div class="link-block">
+        <div class="link-label">LOGGER LINK (private — for the logger only)</div>
+        <div class="link-row">
+          <div class="link-value" id="result-logger-url"></div>
+          <button class="btn-copy" data-target="result-logger-url">COPY</button>
+        </div>
+      </div>
+
+      <div class="link-block">
+        <div class="link-label">SCOREBOARD LINK (share with parents)</div>
+        <div class="link-row">
+          <div class="link-value opp-color" id="result-scoreboard-url"></div>
+          <button class="btn-copy" data-target="result-scoreboard-url">COPY</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Games List -->
+    <div class="card">
+      <div class="card-title">RECENT GAMES</div>
+      <div id="games-list" class="games-list">
+        <div class="empty-state">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Set today's date as default
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('f-date').value = today;
+
+    // ── Create game ───────────────────────────────────────────────────────────
+
+    document.getElementById('create-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btn-create');
+      const errEl = document.getElementById('create-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'CREATING...';
+
+      const body = {
+        date: document.getElementById('f-date').value,
+        team_name: document.getElementById('f-team').value.trim() || 'PFC',
+        opponent: document.getElementById('f-opponent').value.trim(),
+        venue: document.getElementById('f-venue').value.trim(),
+      };
+
+      try {
+        const r = await fetch('/api/games', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed to create game');
+
+        document.getElementById('result-logger-url').textContent = data.logger_url;
+        document.getElementById('result-scoreboard-url').textContent = data.scoreboard_url;
+        document.getElementById('result-section').classList.remove('hidden');
+        document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+
+        // Refresh list
+        loadGames();
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'CREATE GAME SESSION';
+      }
+    });
+
+    // ── Copy buttons ──────────────────────────────────────────────────────────
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-copy');
+      if (!btn) return;
+      const target = document.getElementById(btn.dataset.target);
+      if (!target) return;
+      navigator.clipboard.writeText(target.textContent.trim()).then(() => {
+        btn.textContent = 'COPIED!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'COPY';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    });
+
+    // ── Load games list ───────────────────────────────────────────────────────
+
+    async function loadGames() {
+      const container = document.getElementById('games-list');
+      try {
+        const r = await fetch('/api/games');
+        const games = await r.json();
+        if (!games.length) {
+          container.innerHTML = '<div class="empty-state">No games yet.</div>';
+          return;
+        }
+        container.innerHTML = games.map(g => {
+          const statusClass = g.status;
+          const statusLabel =
+            g.status === 'live'    ? '● LIVE' :
+            g.status === 'final'   ? 'FINAL'  : 'PENDING';
+          const score = g.status !== 'pending'
+            ? `<div class="game-score">${g.score_pfc} — ${g.score_opp}</div>`
+            : '';
+          return `
+            <div class="game-row">
+              <div class="game-row-header">
+                <div class="game-teams">
+                  <span class="team-pfc">${esc(g.team_name)}</span>
+                  <span style="color:var(--text-muted)"> vs </span>
+                  <span class="team-opp">${esc(g.opponent)}</span>
+                </div>
+                <span class="game-status-badge ${statusClass}">${statusLabel}</span>
+              </div>
+              <div class="game-meta">${g.date}${g.venue ? ' · ' + esc(g.venue) : ''} · ${esc(g.current_period)}</div>
+              ${score}
+              <div class="game-links">
+                <a href="${esc(g.logger_url)}" target="_blank" class="game-link-btn logger">LOGGER</a>
+                <a href="${esc(g.scoreboard_url)}" target="_blank" class="game-link-btn scoreboard">SCOREBOARD</a>
+              </div>
+            </div>`;
+        }).join('');
+      } catch (_) {
+        container.innerHTML = '<div class="empty-state">Could not load games.</div>';
+      }
+    }
+
+    function esc(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    loadGames();
+  </script>
+</body>
+</html>

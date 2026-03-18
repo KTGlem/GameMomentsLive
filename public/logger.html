@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>GameMomentsLive — Logger</title>
+  <link rel="stylesheet" href="/shared.css">
+  <style>
+    /* Logger-only styles */
+
+    #screen-loading,
+    #screen-error {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: var(--bg);
+    }
+
+    #screen-final .event-grid {
+      pointer-events: none;
+    }
+
+    #screen-final .btn-event {
+      opacity: 0.3;
+    }
+
+    .final-overlay {
+      background: rgba(255, 215, 0, 0.04);
+      border-top: 1px solid rgba(255, 215, 0, 0.3);
+      border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+      padding: 8px 12px;
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--goal-gold);
+      letter-spacing: 1.5px;
+      text-align: center;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+    }
+
+    /* Offline queue indicator */
+    .queue-badge {
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      color: var(--warn);
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading screen -->
+  <div id="screen-loading" class="center-screen">
+    <div class="spinner"></div>
+    <p style="font-family:var(--font-pixel);font-size:7px;color:var(--text-dim);letter-spacing:1px;">CONNECTING...</p>
+  </div>
+
+  <!-- Error screen -->
+  <div id="screen-error" class="hidden center-screen">
+    <h1 class="error-title" id="error-title">ERROR</h1>
+    <p id="error-msg">Something went wrong.</p>
+  </div>
+
+  <!-- Logger screen (active when game loaded) -->
+  <div id="screen-logger" class="screen hidden" style="display:none;">
+
+    <!-- ── Header: Half badge + Clock + Opponent ── -->
+    <div class="log-header">
+      <div class="hud-row-top">
+        <div class="half-badge" id="half-indicator">PRE</div>
+        <div class="clock-display" id="clock">00:00</div>
+        <!-- The right area beside the clock: shows opponent name.
+             Architecturally reserved for future highlight button zone. -->
+        <div class="log-opp" id="header-opponent">vs —</div>
+      </div>
+      <div class="hud-score-row">
+        <span class="hud-team-label hud-pfc" id="score-pfc-name">PFC</span>
+        <span class="hud-score" id="score-pfc">0</span>
+        <span class="hud-divider">—</span>
+        <span class="hud-score" id="score-opp">0</span>
+        <span class="hud-team-label hud-opp" id="score-opp-name">OPP</span>
+      </div>
+      <!-- Connection status bar -->
+      <div class="conn-bar">
+        <span class="conn-dot" id="conn-dot"></span>
+        <span class="conn-label" id="conn-label">CONNECTING</span>
+        <span class="queue-badge hidden" id="queue-badge"></span>
+      </div>
+    </div>
+
+    <!-- ── Final game banner (shown when status=final) ── -->
+    <div class="final-overlay hidden" id="final-banner">FULL TIME — GAME ENDED</div>
+
+    <!-- ── Event Button Grid ── -->
+    <div class="event-grid" id="event-grid"></div>
+
+    <!-- ── Footer: Recent events + controls ── -->
+    <div class="log-footer">
+      <div class="recent-log" id="recent-events">
+        <div class="recent-placeholder">— tap an event to log it —</div>
+      </div>
+      <div class="footer-controls">
+        <button id="btn-undo" class="btn-undo" disabled>↩ UNDO</button>
+
+        <!-- Start H1 CTA (shown when status=pending) -->
+        <div id="start-h1-cta">
+          <p class="start-hint">Tap at kickoff to start the game clock.</p>
+          <button id="btn-start-h1" class="btn-start-h1">Tap at Kickoff — Start Half 1</button>
+        </div>
+
+        <!-- Start H2 CTA (hidden until first event in H1) -->
+        <div id="half2-cta" class="hidden">
+          <p class="start-hint">Wait for the actual H2 kickoff, then tap.</p>
+          <button id="btn-half2" class="btn-half2">Tap at H2 Kickoff — Start Half 2</button>
+        </div>
+
+        <!-- End game (shown when in H2) -->
+        <button id="btn-end-game" class="btn-end-game hidden">END ■</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal flash overlay -->
+  <div id="goal-flash"></div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    'use strict';
+
+    // ── Event type definitions ────────────────────────────────────────────────
+
+    const EVENT_TYPES = [
+      { family: 'goal',      label: 'GOAL',      isGoal: true  },
+      { family: 'kickoff',   label: 'KICKOFF',   isGoal: false },
+      { family: 'sideout',   label: 'SIDEOUT',   isGoal: false },
+      { family: 'goal_kick', label: 'GOAL KICK', isGoal: false },
+      { family: 'corner',    label: 'CORNER',    isGoal: false },
+      { family: 'free_kick', label: 'FREE KICK', isGoal: false },
+    ];
+
+    const EVENT_DISPLAY = {
+      goal_pfc:      'Goal — PFC',
+      goal_opp:      'Goal — Opponent',
+      kickoff_pfc:   'Kickoff — PFC',
+      kickoff_opp:   'Kickoff — Opponent',
+      sideout_pfc:   'Sideout — PFC',
+      sideout_opp:   'Sideout — Opponent',
+      goal_kick_pfc: 'Goal Kick — PFC',
+      goal_kick_opp: 'Goal Kick — Opponent',
+      corner_pfc:    'Corner — PFC',
+      corner_opp:    'Corner — Opponent',
+      free_kick_pfc: 'Free Kick — PFC',
+      free_kick_opp: 'Free Kick — Opponent',
+    };
+
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    let gameId    = null;
+    let token     = null;
+    let game      = null;       // Current game record from backend
+    let events    = [];         // Full events array (from backend or local)
+    let isOnline  = false;      // Whether backend is reachable
+    let clockSeconds = 0;       // Local clock (seconds elapsed in current period)
+    let clockInterval = null;
+    let tickInterval  = null;
+    let toastTimeout  = null;
+    let wakeLock      = null;
+    let offlineQueue  = [];     // Events/actions pending sync when back online
+
+    // ── URL params ────────────────────────────────────────────────────────────
+
+    (function parseParams() {
+      const p = new URLSearchParams(location.search);
+      gameId = p.get('gameId');
+      token  = p.get('token');
+    })();
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function el(id) { return document.getElementById(id); }
+
+    function formatTime(s) {
+      const t = Math.max(0, Math.floor(s));
+      return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+    }
+
+    function esc(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function showToast(msg) {
+      const t = el('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => t.classList.remove('show'), 1800);
+    }
+
+    function vibrate(pattern = 45) {
+      if (navigator.vibrate) {
+        try { navigator.vibrate(pattern); } catch (_) {}
+      }
+    }
+
+    // ── Local storage persistence ─────────────────────────────────────────────
+
+    function saveLocal() {
+      if (!gameId) return;
+      try {
+        localStorage.setItem(`gml_state_${gameId}`, JSON.stringify({
+          game, events, savedAt: new Date().toISOString(),
+        }));
+      } catch (_) {}
+    }
+
+    function loadLocal() {
+      if (!gameId) return null;
+      try {
+        const raw = localStorage.getItem(`gml_state_${gameId}`);
+        return raw ? JSON.parse(raw) : null;
+      } catch (_) { return null; }
+    }
+
+    function saveQueue() {
+      try {
+        localStorage.setItem(`gml_queue_${gameId}`, JSON.stringify(offlineQueue));
+      } catch (_) {}
+    }
+
+    function loadQueue() {
+      try {
+        const raw = localStorage.getItem(`gml_queue_${gameId}`);
+        offlineQueue = raw ? JSON.parse(raw) : [];
+      } catch (_) { offlineQueue = []; }
+    }
+
+    // ── Connection status ─────────────────────────────────────────────────────
+
+    function setConnectionStatus(status) {
+      // status: 'online' | 'offline' | 'syncing' | 'connecting'
+      const dot   = el('conn-dot');
+      const label = el('conn-label');
+      dot.className   = `conn-dot ${status === 'online' ? 'online' : status === 'offline' ? 'offline' : status === 'syncing' ? 'syncing' : ''}`;
+      label.className = `conn-label ${status === 'online' ? 'online' : status === 'offline' ? 'offline' : status === 'syncing' ? 'syncing' : ''}`;
+
+      const labels = {
+        online:     'LIVE',
+        offline:    'OFFLINE — LOCAL MODE',
+        syncing:    'SYNCING...',
+        connecting: 'CONNECTING',
+      };
+      label.textContent = labels[status] || status.toUpperCase();
+
+      isOnline = status === 'online';
+      updateQueueBadge();
+    }
+
+    function updateQueueBadge() {
+      const badge = el('queue-badge');
+      if (offlineQueue.length > 0 && !isOnline) {
+        badge.textContent = `${offlineQueue.length} QUEUED`;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    // ── API calls ─────────────────────────────────────────────────────────────
+
+    async function apiFetch(path, options = {}) {
+      const r = await fetch(path, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ error: r.statusText }));
+        throw new Error(err.error || `HTTP ${r.status}`);
+      }
+      return r.json();
+    }
+
+    async function fetchState() {
+      return apiFetch(`/api/games/${gameId}?token=${token}`);
+    }
+
+    async function postControl(action) {
+      return apiFetch(`/api/games/${gameId}/control`, {
+        method: 'POST',
+        body: JSON.stringify({ token, action, clock_seconds: clockSeconds }),
+      });
+    }
+
+    async function postEvent(event_code) {
+      return apiFetch(`/api/games/${gameId}/events`, {
+        method: 'POST',
+        body: JSON.stringify({ token, event_code, clock_seconds: clockSeconds }),
+      });
+    }
+
+    async function deleteLastEvent() {
+      return apiFetch(`/api/games/${gameId}/events/last?token=${token}`, {
+        method: 'DELETE',
+      });
+    }
+
+    // ── Offline queue sync ────────────────────────────────────────────────────
+
+    async function syncOfflineQueue() {
+      if (!offlineQueue.length) return;
+      setConnectionStatus('syncing');
+      let failed = false;
+
+      while (offlineQueue.length > 0) {
+        const item = offlineQueue[0];
+        try {
+          if (item.type === 'event') {
+            await apiFetch(`/api/games/${gameId}/events`, {
+              method: 'POST',
+              body: JSON.stringify({
+                token,
+                event_code: item.event_code,
+                clock_seconds: item.clock_seconds,
+              }),
+            });
+          } else if (item.type === 'control') {
+            await apiFetch(`/api/games/${gameId}/control`, {
+              method: 'POST',
+              body: JSON.stringify({
+                token,
+                action: item.action,
+                clock_seconds: item.clock_seconds,
+              }),
+            });
+          }
+          offlineQueue.shift();
+          saveQueue();
+        } catch (_) {
+          failed = true;
+          break;
+        }
+      }
+
+      if (failed) {
+        setConnectionStatus('offline');
+      } else {
+        // Re-fetch authoritative state after sync
+        try {
+          const data = await fetchState();
+          applyServerState(data.game, data.events);
+          setConnectionStatus('online');
+          showToast('SYNCED ✓');
+        } catch (_) {
+          setConnectionStatus('offline');
+        }
+      }
+    }
+
+    // ── Apply server state ────────────────────────────────────────────────────
+
+    function applyServerState(serverGame, serverEvents) {
+      game   = serverGame;
+      events = serverEvents;
+      // Only sync clock from server if we're not running locally
+      // (i.e., game is live and server has a meaningful clock)
+      if (game.status === 'live' && clockInterval === null) {
+        // Clock wasn't running locally yet — restore from server
+        clockSeconds = game.clock_seconds;
+      }
+      saveLocal();
+      renderAll();
+    }
+
+    // ── Render helpers ────────────────────────────────────────────────────────
+
+    function deriveScore() {
+      let pfc = 0, opp = 0;
+      for (const e of events) {
+        if (e.event_code === 'goal_pfc') pfc++;
+        else if (e.event_code === 'goal_opp') opp++;
+      }
+      return { pfc, opp };
+    }
+
+    function deriveTallies() {
+      const counts = {};
+      for (const e of events) {
+        counts[e.event_code] = (counts[e.event_code] || 0) + 1;
+      }
+      return counts;
+    }
+
+    function renderAll() {
+      if (!game) return;
+
+      // Team labels
+      el('score-pfc-name').textContent = game.team_name || 'PFC';
+      el('score-opp-name').textContent = game.opponent  || 'OPP';
+      el('header-opponent').textContent = 'vs ' + (game.opponent || '—');
+
+      // Half badge
+      const period = game.current_period || 'PRE';
+      el('half-indicator').textContent = period;
+
+      // Score (derived from events for consistency)
+      const { pfc, opp } = deriveScore();
+      el('score-pfc').textContent = pfc;
+      el('score-opp').textContent = opp;
+
+      // Tallies
+      const counts = deriveTallies();
+      EVENT_TYPES.forEach(({ family }) => {
+        const tallyEl = el(`tally-${family}`);
+        if (tallyEl) {
+          const p = counts[`${family}_pfc`] || 0;
+          const o = counts[`${family}_opp`] || 0;
+          tallyEl.textContent = `${p}:${o}`;
+        }
+      });
+
+      // Recent events
+      renderRecentEvents();
+
+      // Control visibility
+      const isPending = game.status === 'pending';
+      const isLive    = game.status === 'live';
+      const isFinal   = game.status === 'final';
+      const inH1      = isLive && period === 'H1';
+      const inH2      = isLive && period === 'H2';
+
+      el('start-h1-cta').classList.toggle('hidden', !isPending);
+      el('half2-cta').classList.toggle('hidden', !(inH1 && events.length > 0));
+      el('btn-end-game').classList.toggle('hidden', !inH2);
+      el('btn-undo').disabled = events.length === 0 || !isLive;
+      el('final-banner').classList.toggle('hidden', !isFinal);
+
+      // Enable/disable event buttons
+      document.querySelectorAll('.btn-event').forEach(btn => {
+        btn.disabled = !isLive;
+      });
+
+      // Clock management
+      if (isLive && !clockInterval) {
+        startClock();
+      } else if (!isLive && clockInterval) {
+        stopClock();
+        el('clock').textContent = formatTime(game.clock_seconds);
+        clockSeconds = game.clock_seconds;
+      }
+
+      // Wake lock
+      if (isLive) requestWakeLock();
+    }
+
+    function renderRecentEvents() {
+      const container = el('recent-events');
+      const last3 = events.slice(-3).reverse();
+
+      if (!last3.length) {
+        container.innerHTML = '<div class="recent-placeholder">— tap an event to log it —</div>';
+        return;
+      }
+
+      container.innerHTML = last3.map(e => {
+        const code = e.event_code;
+        const isGoal = code.startsWith('goal_');
+        const isPfc  = code.endsWith('_pfc');
+        const cls    = isGoal ? 're-goal' : isPfc ? 're-pfc' : 're-opp';
+        const label  = EVENT_DISPLAY[code] || code;
+        // Replace team name in label if it's PFC variant
+        const displayLabel = isPfc && game
+          ? label.replace('PFC', game.team_name || 'PFC')
+          : label;
+        return `
+          <div class="recent-event ${cls}">
+            <span class="re-period">${esc(e.period)}</span>
+            <span class="re-time">${formatTime(e.clock_seconds)}</span>
+            <span class="re-label">${esc(displayLabel)}</span>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Clock ─────────────────────────────────────────────────────────────────
+
+    function startClock() {
+      stopClock();
+      clockInterval = setInterval(() => {
+        clockSeconds++;
+        el('clock').textContent = formatTime(clockSeconds);
+      }, 1000);
+    }
+
+    function stopClock() {
+      if (clockInterval) {
+        clearInterval(clockInterval);
+        clockInterval = null;
+      }
+    }
+
+    function startTickSync() {
+      if (tickInterval) clearInterval(tickInterval);
+      // Send clock_seconds to server every 20 seconds to keep scoreboard in sync
+      tickInterval = setInterval(async () => {
+        if (!isOnline || !game || game.status !== 'live') return;
+        try {
+          await apiFetch(`/api/games/${gameId}/control`, {
+            method: 'POST',
+            body: JSON.stringify({ token, action: 'tick', clock_seconds: clockSeconds }),
+          });
+        } catch (_) {
+          // Tick failure is non-critical
+        }
+      }, 20_000);
+    }
+
+    // ── Event buttons ─────────────────────────────────────────────────────────
+
+    function buildEventGrid() {
+      const grid = el('event-grid');
+      grid.innerHTML = '';
+
+      EVENT_TYPES.forEach(({ family, label, isGoal }) => {
+        const row = document.createElement('div');
+        row.className = `event-row event-row-${family}`;
+
+        // Label + tally
+        const lbl = document.createElement('div');
+        lbl.className = 'event-row-label';
+        lbl.innerHTML = `<span>${label}</span><span class="event-row-tally" id="tally-${family}">0:0</span>`;
+
+        // PFC button
+        const btnPfc = document.createElement('button');
+        btnPfc.className = 'btn-event btn-pfc';
+        btnPfc.dataset.code = `${family}_pfc`;
+        btnPfc.textContent = 'PFC';
+        btnPfc.setAttribute('aria-label', EVENT_DISPLAY[`${family}_pfc`] || `${label} PFC`);
+        btnPfc.disabled = true;
+        btnPfc.addEventListener('click', () => handleEvent(`${family}_pfc`));
+
+        // OPP button
+        const btnOpp = document.createElement('button');
+        btnOpp.className = 'btn-event btn-opp';
+        btnOpp.dataset.code = `${family}_opp`;
+        btnOpp.textContent = 'OPP';
+        btnOpp.setAttribute('aria-label', EVENT_DISPLAY[`${family}_opp`] || `${label} OPP`);
+        btnOpp.disabled = true;
+        btnOpp.addEventListener('click', () => handleEvent(`${family}_opp`));
+
+        row.appendChild(lbl);
+        row.appendChild(btnPfc);
+        row.appendChild(btnOpp);
+        grid.appendChild(row);
+      });
+
+      // Update PFC button labels when game loads
+      updateButtonLabels();
+    }
+
+    function updateButtonLabels() {
+      if (!game) return;
+      const teamLabel = (game.team_name || 'PFC').toUpperCase().slice(0, 8);
+      document.querySelectorAll('.btn-pfc').forEach(btn => {
+        btn.textContent = teamLabel;
+      });
+    }
+
+    function flashButton(eventCode) {
+      const btn = document.querySelector(`[data-code="${eventCode}"]`);
+      if (!btn) return;
+      btn.classList.add('flash');
+      btn.addEventListener('animationend', () => btn.classList.remove('flash'), { once: true });
+    }
+
+    function goalCelebration() {
+      const overlay = el('goal-flash');
+      overlay.classList.add('show');
+      setTimeout(() => overlay.classList.remove('show'), 400);
+      vibrate([80, 40, 80]);
+    }
+
+    // ── Handle event log ──────────────────────────────────────────────────────
+
+    async function handleEvent(eventCode) {
+      if (!game || game.status !== 'live') return;
+
+      // Optimistic local update
+      const localEvent = {
+        event_id: `local_${Date.now()}`,
+        game_id: gameId,
+        sequence_number: events.length + 1,
+        period: game.current_period,
+        clock_seconds: clockSeconds,
+        event_code: eventCode,
+        created_at: new Date().toISOString(),
+        source_role: 'logger',
+      };
+      events.push(localEvent);
+      saveLocal();
+
+      flashButton(eventCode);
+      vibrate(45);
+      if (eventCode.startsWith('goal_')) goalCelebration();
+
+      renderAll();
+
+      // Show H2 CTA after first event
+      if (game.current_period === 'H1' && events.length >= 1) {
+        el('half2-cta').classList.remove('hidden');
+      }
+
+      if (isOnline) {
+        try {
+          const data = await postEvent(eventCode);
+          // Replace local event with server-confirmed event
+          events = data.events;
+          game   = data.game;
+          saveLocal();
+          renderAll();
+        } catch (err) {
+          // API failed — queue for later sync
+          events.pop(); // remove optimistic event
+          events.push(localEvent); // re-add as-is
+
+          offlineQueue.push({
+            type: 'event',
+            event_code: eventCode,
+            clock_seconds: clockSeconds,
+            timestamp: Date.now(),
+          });
+          saveQueue();
+          setConnectionStatus('offline');
+          showToast('SAVED LOCALLY');
+        }
+      } else {
+        offlineQueue.push({
+          type: 'event',
+          event_code: eventCode,
+          clock_seconds: clockSeconds,
+          timestamp: Date.now(),
+        });
+        saveQueue();
+        updateQueueBadge();
+        showToast('SAVED LOCALLY');
+      }
+    }
+
+    // ── Undo ──────────────────────────────────────────────────────────────────
+
+    async function handleUndo() {
+      if (!events.length || !game || game.status !== 'live') return;
+
+      if (!isOnline) {
+        // Check if last event is in the offline queue
+        const lastQueued = offlineQueue.findLast ? offlineQueue.findLast(x => x.type === 'event') : null;
+        if (lastQueued) {
+          const idx = offlineQueue.lastIndexOf(lastQueued);
+          offlineQueue.splice(idx, 1);
+          saveQueue();
+        }
+        events.pop();
+        saveLocal();
+        renderAll();
+        vibrate(30);
+        showToast('EVENT REMOVED');
+        return;
+      }
+
+      try {
+        const data = await deleteLastEvent();
+        events = data.events;
+        game   = data.game;
+        saveLocal();
+        renderAll();
+        vibrate(30);
+        showToast('EVENT REMOVED');
+      } catch (err) {
+        showToast('UNDO FAILED');
+      }
+    }
+
+    // ── Control actions ───────────────────────────────────────────────────────
+
+    async function handleControl(action) {
+      if (!game) return;
+
+      if (isOnline) {
+        try {
+          const data = await postControl(action);
+          game   = data.game;
+          events = data.events;
+
+          if (action === 'start_h1') {
+            clockSeconds = 0;
+            el('clock').textContent = '00:00';
+            startClock();
+            startTickSync();
+            showToast('HALF 1 STARTED');
+          } else if (action === 'start_h2') {
+            clockSeconds = 0;
+            el('clock').textContent = '00:00';
+            stopClock();
+            startClock();
+            showToast('HALF 2 STARTED');
+          } else if (action === 'end_game') {
+            stopClock();
+            if (tickInterval) clearInterval(tickInterval);
+            showToast('GAME ENDED');
+          }
+
+          saveLocal();
+          renderAll();
+        } catch (err) {
+          showToast(`ERROR: ${err.message}`);
+        }
+      } else {
+        // Offline: apply locally
+        if (action === 'start_h1') {
+          game.status = 'live';
+          game.current_period = 'H1';
+          clockSeconds = 0;
+          el('clock').textContent = '00:00';
+          startClock();
+          startTickSync();
+          showToast('HALF 1 — LOCAL');
+        } else if (action === 'start_h2') {
+          game.current_period = 'H2';
+          clockSeconds = 0;
+          el('clock').textContent = '00:00';
+          stopClock();
+          startClock();
+          showToast('HALF 2 — LOCAL');
+        } else if (action === 'end_game') {
+          game.status = 'final';
+          game.current_period = 'FT';
+          stopClock();
+          if (tickInterval) clearInterval(tickInterval);
+          showToast('GAME ENDED — LOCAL');
+        }
+
+        offlineQueue.push({ type: 'control', action, clock_seconds: clockSeconds });
+        saveQueue();
+        saveLocal();
+        renderAll();
+      }
+    }
+
+    // ── Wake lock ─────────────────────────────────────────────────────────────
+
+    async function requestWakeLock() {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        if (wakeLock) return;
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      } catch (_) {}
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && game && game.status === 'live') {
+        requestWakeLock();
+      }
+    });
+
+    // ── Poll for state sync (when online) ────────────────────────────────────
+
+    function startStatePolling() {
+      setInterval(async () => {
+        if (!isOnline) {
+          // Try to reconnect
+          try {
+            const data = await fetchState();
+            applyServerState(data.game, data.events);
+            setConnectionStatus('online');
+            if (offlineQueue.length > 0) {
+              await syncOfflineQueue();
+            }
+          } catch (_) {
+            // Still offline
+          }
+        }
+      }, 30_000); // Check every 30s
+    }
+
+    // ── Initialisation ────────────────────────────────────────────────────────
+
+    async function init() {
+      if (!gameId || !token) {
+        showError('INVALID LINK', 'Missing gameId or token in the URL.');
+        return;
+      }
+
+      // Build the event grid immediately
+      buildEventGrid();
+
+      // Load offline queue from localStorage
+      loadQueue();
+
+      try {
+        const data = await fetchState();
+        applyServerState(data.game, data.events);
+        setConnectionStatus('online');
+        updateButtonLabels();
+
+        // If game is already live, start clock from server value
+        if (game.status === 'live') {
+          clockSeconds = game.clock_seconds;
+          startClock();
+          startTickSync();
+        }
+
+        // Sync any queued items
+        if (offlineQueue.length > 0) {
+          await syncOfflineQueue();
+        }
+      } catch (err) {
+        // Check if it's a 403/404 (invalid token/game)
+        if (err.message.includes('invalid token') || err.message.includes('game not found')) {
+          showError('ACCESS DENIED', err.message);
+          return;
+        }
+
+        // Try loading from localStorage
+        const local = loadLocal();
+        if (local && local.game) {
+          game   = local.game;
+          events = local.events || [];
+          clockSeconds = game.clock_seconds || 0;
+          setConnectionStatus('offline');
+          showToast('OFFLINE — LOCAL MODE');
+
+          if (game.status === 'live') {
+            startClock();
+          }
+        } else {
+          setConnectionStatus('offline');
+          game = {
+            game_id: gameId,
+            team_name: 'PFC',
+            opponent: '—',
+            status: 'pending',
+            current_period: 'PRE',
+            clock_seconds: 0,
+            score_pfc: 0,
+            score_opp: 0,
+          };
+          events = [];
+          showToast('OFFLINE — LOCAL MODE');
+        }
+      }
+
+      // Show logger screen
+      el('screen-loading').classList.add('hidden');
+      el('screen-error').classList.add('hidden');
+      el('screen-logger').classList.remove('hidden');
+      el('screen-logger').style.display = 'flex';
+      el('screen-logger').classList.add('active');
+
+      renderAll();
+      startStatePolling();
+    }
+
+    function showError(title, msg) {
+      el('screen-loading').classList.add('hidden');
+      el('error-title').textContent = title;
+      el('error-msg').textContent   = msg;
+      el('screen-error').classList.remove('hidden');
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────────
+
+    document.getElementById('btn-start-h1').addEventListener('click', () => handleControl('start_h1'));
+    document.getElementById('btn-half2').addEventListener('click', () => handleControl('start_h2'));
+    document.getElementById('btn-end-game').addEventListener('click', () => {
+      if (confirm('End the game? This cannot be undone.')) {
+        handleControl('end_game');
+      }
+    });
+    document.getElementById('btn-undo').addEventListener('click', handleUndo);
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    init();
+  </script>
+</body>
+</html>
