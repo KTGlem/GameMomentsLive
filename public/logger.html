@@ -40,6 +40,40 @@
       text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
     }
 
+    /* ── Highlight logger button ── */
+
+    .btn-hl-logger {
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--goal-gold);
+      background: transparent;
+      border: 1px solid rgba(255, 215, 0, 0.35);
+      border-radius: 3px;
+      padding: 5px 7px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 6px rgba(255, 215, 0, 0.35);
+      flex-shrink: 0;
+      transition: background 0.1s, border-color 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .btn-hl-logger:disabled {
+      opacity: 0.25;
+      cursor: default;
+    }
+
+    .btn-hl-logger:not(:disabled):active {
+      background: rgba(255, 215, 0, 0.15);
+      transform: scale(0.93);
+    }
+
+    .btn-hl-logger.hl-saved {
+      background: rgba(255, 215, 0, 0.2);
+      border-color: var(--goal-gold);
+    }
+
     /* Offline queue indicator */
     .queue-badge {
       font-family: var(--font-pixel);
@@ -71,8 +105,8 @@
       <div class="hud-row-top">
         <div class="half-badge" id="half-indicator">PRE</div>
         <div class="clock-display" id="clock">00:00</div>
-        <!-- The right area beside the clock: shows opponent name.
-             Architecturally reserved for future highlight button zone. -->
+        <!-- Highlight button: one-tap, no extra metadata needed from logger -->
+        <button id="btn-highlight-logger" class="btn-hl-logger" disabled aria-label="Submit highlight">★ HL</button>
         <div class="log-opp" id="header-opponent">vs —</div>
       </div>
       <div class="hud-score-row">
@@ -444,6 +478,10 @@
         btn.disabled = !isLive;
       });
 
+      // Enable highlight button only during live play
+      const hlBtn = el('btn-highlight-logger');
+      if (hlBtn) hlBtn.disabled = !isLive;
+
       // Clock management
       if (isLive && !clockInterval) {
         startClock();
@@ -683,6 +721,40 @@
       }
     }
 
+    // ── Logger highlight ──────────────────────────────────────────────────────
+
+    async function handleHighlightLogger() {
+      if (!game || game.status !== 'live') return;
+
+      vibrate(60);
+
+      const btn = el('btn-highlight-logger');
+      if (btn) {
+        btn.classList.add('hl-saved');
+        setTimeout(() => btn.classList.remove('hl-saved'), 600);
+      }
+
+      if (!isOnline) {
+        // Highlights are best-effort; no offline queue for now
+        showToast('OFFLINE — HIGHLIGHT NOT SAVED');
+        return;
+      }
+
+      try {
+        await apiFetch(`/api/games/${gameId}/highlights/logger`, {
+          method: 'POST',
+          body: JSON.stringify({
+            token,
+            period: game.current_period,
+            clock_seconds_estimate: clockSeconds,
+          }),
+        });
+        showToast('HIGHLIGHT ★ SAVED');
+      } catch (_) {
+        showToast('HL FAILED — TRY AGAIN');
+      }
+    }
+
     // ── Control actions ───────────────────────────────────────────────────────
 
     async function handleControl(action) {
@@ -881,6 +953,7 @@
       }
     });
     document.getElementById('btn-undo').addEventListener('click', handleUndo);
+    document.getElementById('btn-highlight-logger').addEventListener('click', handleHighlightLogger);
 
     // ── Boot ──────────────────────────────────────────────────────────────────
     init();

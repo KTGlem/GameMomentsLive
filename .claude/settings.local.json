@@ -7,7 +7,8 @@
       "Bash(node -e \":*)",
       "Bash(pkill -f 'node server.js')",
       "Bash(sleep 1 cd C:/Users/glen_/projects/GameMomentsLive echo '=== Project structure ===' find . -not -path ./node_modules/* -not -path ./data/* -not -path ./.git/*)",
-      "Bash(taskkill /F /IM node.exe)"
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(node:*)"
     ]
   }
 }

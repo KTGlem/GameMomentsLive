@@ -47,6 +47,42 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_games_viewer_token ON games(viewer_token);
 `);
 
+// ── Highlight tables (added in phase 2) ──────────────────────────────────────
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS highlight_submissions (
+    submission_id          TEXT PRIMARY KEY,
+    game_id                TEXT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+    source_role            TEXT NOT NULL DEFAULT 'logger',
+    period                 TEXT NOT NULL DEFAULT '',
+    clock_seconds_estimate INTEGER NOT NULL DEFAULT 0,
+    player_numbers         TEXT NOT NULL DEFAULT '',   -- pipe-delimited, e.g. "7|9"
+    highlight_reasons      TEXT NOT NULL DEFAULT '',   -- pipe-delimited, e.g. "GOAL|WINDOW"
+    note                   TEXT NOT NULL DEFAULT '',
+    canonical_highlight_id TEXT DEFAULT NULL,           -- set after merge/create
+    created_at             TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS canonical_highlights (
+    highlight_id           TEXT PRIMARY KEY,
+    game_id                TEXT NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+    period                 TEXT NOT NULL DEFAULT '',
+    clock_seconds_estimate INTEGER NOT NULL DEFAULT 0,
+    clip_start             INTEGER NOT NULL DEFAULT 0,  -- default: clock - 8s
+    clip_end               INTEGER NOT NULL DEFAULT 0,  -- default: clock + 12s
+    source_roles           TEXT NOT NULL DEFAULT '',    -- pipe-delimited union
+    player_numbers         TEXT NOT NULL DEFAULT '',    -- pipe-delimited union
+    highlight_reasons      TEXT NOT NULL DEFAULT '',    -- pipe-delimited union
+    vote_count             INTEGER NOT NULL DEFAULT 1,
+    note_summary           TEXT NOT NULL DEFAULT '',
+    created_at             TEXT NOT NULL,
+    updated_at             TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_highlight_submissions_game_id ON highlight_submissions(game_id);
+  CREATE INDEX IF NOT EXISTS idx_canonical_highlights_game_id  ON canonical_highlights(game_id);
+`);
+
 // ── Prepared statements ──────────────────────────────────────────────────────
 // node:sqlite uses $name for named parameters
 
@@ -77,6 +113,44 @@ const stmts = {
   ),
 
   deleteEvent: db.prepare('DELETE FROM events WHERE event_id = $event_id'),
+
+  // ── Highlight prepared statements ────────────────────────────────────────
+
+  createHighlightSubmission: db.prepare(`
+    INSERT INTO highlight_submissions
+      (submission_id, game_id, source_role, period, clock_seconds_estimate,
+       player_numbers, highlight_reasons, note, canonical_highlight_id, created_at)
+    VALUES
+      ($submission_id, $game_id, $source_role, $period, $clock_seconds_estimate,
+       $player_numbers, $highlight_reasons, $note, $canonical_highlight_id, $created_at)
+  `),
+
+  getHighlightSubmissions: db.prepare(
+    'SELECT * FROM highlight_submissions WHERE game_id = $game_id ORDER BY created_at ASC'
+  ),
+
+  linkSubmissionToCanonical: db.prepare(`
+    UPDATE highlight_submissions
+    SET canonical_highlight_id = $canonical_highlight_id
+    WHERE submission_id = $submission_id
+  `),
+
+  createCanonicalHighlight: db.prepare(`
+    INSERT INTO canonical_highlights
+      (highlight_id, game_id, period, clock_seconds_estimate, clip_start, clip_end,
+       source_roles, player_numbers, highlight_reasons, vote_count, note_summary, created_at, updated_at)
+    VALUES
+      ($highlight_id, $game_id, $period, $clock_seconds_estimate, $clip_start, $clip_end,
+       $source_roles, $player_numbers, $highlight_reasons, $vote_count, $note_summary, $created_at, $updated_at)
+  `),
+
+  getCanonicalHighlights: db.prepare(
+    'SELECT * FROM canonical_highlights WHERE game_id = $game_id ORDER BY clock_seconds_estimate ASC'
+  ),
+
+  getCanonicalHighlight: db.prepare(
+    'SELECT * FROM canonical_highlights WHERE highlight_id = $highlight_id'
+  ),
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -161,6 +235,72 @@ module.exports = {
       db.exec('ROLLBACK');
       throw err;
     }
+  },
+
+  // ── Highlight exports ─────────────────────────────────────────────────────
+
+  createHighlightSubmission(data) {
+    stmts.createHighlightSubmission.run({
+      $submission_id:          data.submission_id,
+      $game_id:                data.game_id,
+      $source_role:            data.source_role,
+      $period:                 data.period || '',
+      $clock_seconds_estimate: data.clock_seconds_estimate,
+      $player_numbers:         data.player_numbers || '',
+      $highlight_reasons:      data.highlight_reasons || '',
+      $note:                   data.note || '',
+      $canonical_highlight_id: data.canonical_highlight_id || null,
+      $created_at:             data.created_at,
+    });
+  },
+
+  getHighlightSubmissions(gameId) {
+    return stmts.getHighlightSubmissions.all({ $game_id: gameId });
+  },
+
+  linkSubmissionToCanonical(submissionId, canonicalHighlightId) {
+    stmts.linkSubmissionToCanonical.run({
+      $submission_id:          submissionId,
+      $canonical_highlight_id: canonicalHighlightId,
+    });
+  },
+
+  createCanonicalHighlight(data) {
+    stmts.createCanonicalHighlight.run({
+      $highlight_id:           data.highlight_id,
+      $game_id:                data.game_id,
+      $period:                 data.period || '',
+      $clock_seconds_estimate: data.clock_seconds_estimate,
+      $clip_start:             data.clip_start,
+      $clip_end:               data.clip_end,
+      $source_roles:           data.source_roles || '',
+      $player_numbers:         data.player_numbers || '',
+      $highlight_reasons:      data.highlight_reasons || '',
+      $vote_count:             data.vote_count || 1,
+      $note_summary:           data.note_summary || '',
+      $created_at:             data.created_at,
+      $updated_at:             data.updated_at,
+    });
+  },
+
+  getCanonicalHighlights(gameId) {
+    return stmts.getCanonicalHighlights.all({ $game_id: gameId });
+  },
+
+  getCanonicalHighlight(highlightId) {
+    return stmts.getCanonicalHighlight.get({ $highlight_id: highlightId }) || null;
+  },
+
+  updateCanonicalHighlight(highlightId, fields) {
+    const ts   = now();
+    const cols = Object.keys(fields).map(k => `${k} = $${k}`).join(', ');
+    const params = {};
+    for (const [k, v] of Object.entries(fields)) params[`$${k}`] = v;
+    params.$updated_at   = ts;
+    params.$highlight_id = highlightId;
+    db.prepare(
+      `UPDATE canonical_highlights SET ${cols}, updated_at = $updated_at WHERE highlight_id = $highlight_id`
+    ).run(params);
   },
 
   undoLastEvent(gameId) {

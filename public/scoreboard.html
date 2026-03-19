@@ -235,6 +235,233 @@
       text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
     }
 
+    /* ── Parent highlight submission ── */
+
+    .highlight-submit-zone {
+      padding-top: 4px;
+    }
+
+    .btn-submit-highlight {
+      width: 100%;
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--goal-gold);
+      background: rgba(255, 215, 0, 0.05);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      border-radius: 5px;
+      padding: 16px 12px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.35);
+      transition: background 0.15s, border-color 0.15s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .btn-submit-highlight:active {
+      background: rgba(255, 215, 0, 0.12);
+      border-color: rgba(255, 215, 0, 0.55);
+    }
+
+    /* Modal overlay — slides up from bottom */
+    .hl-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      background: rgba(13, 13, 26, 0.88);
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .hl-modal.hidden {
+      display: none;
+    }
+
+    .hl-modal-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: 2px solid rgba(255, 215, 0, 0.35);
+      border-radius: 10px 10px 0 0;
+      padding: 20px 16px calc(20px + var(--safe-bottom));
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .hl-modal-title {
+      font-family: var(--font-pixel);
+      font-size: 9px;
+      color: var(--goal-gold);
+      letter-spacing: 1.5px;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+      margin-bottom: 4px;
+    }
+
+    .hl-modal-context {
+      font-family: var(--font-vt);
+      font-size: 18px;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+
+    .hl-section-label {
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+
+    /* Player number chips */
+    .hl-number-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+    }
+
+    .hl-number-chip {
+      font-family: var(--font-vt);
+      font-size: 19px;
+      color: var(--text-dim);
+      background: rgba(42, 42, 80, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 2px;
+      cursor: pointer;
+      text-align: center;
+      min-height: 42px;
+      transition: all 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .hl-number-chip.selected {
+      color: var(--pfc);
+      background: rgba(0, 229, 255, 0.12);
+      border-color: rgba(0, 229, 255, 0.6);
+      text-shadow: 0 0 6px rgba(0, 229, 255, 0.4);
+    }
+
+    .hl-number-chip:active {
+      transform: scale(0.90);
+    }
+
+    /* Reason chips */
+    .hl-reasons-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    .hl-reason-chip {
+      font-family: var(--font-pixel);
+      font-size: 6px;
+      color: var(--text-dim);
+      background: rgba(42, 42, 80, 0.5);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px 3px;
+      cursor: pointer;
+      text-align: center;
+      letter-spacing: 0.3px;
+      min-height: 40px;
+      transition: all 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+
+    .hl-reason-chip.selected {
+      color: var(--goal-gold);
+      background: rgba(255, 215, 0, 0.10);
+      border-color: rgba(255, 215, 0, 0.5);
+      text-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+    }
+
+    .hl-reason-chip:active {
+      transform: scale(0.90);
+    }
+
+    /* Note input */
+    .hl-note-input {
+      width: 100%;
+      font-family: var(--font-vt);
+      font-size: 18px;
+      color: var(--text-bright);
+      background: rgba(13, 13, 26, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px 12px;
+      outline: none;
+      box-sizing: border-box;
+      margin-top: 2px;
+    }
+
+    .hl-note-input:focus {
+      border-color: rgba(0, 229, 255, 0.4);
+    }
+
+    .hl-note-input::placeholder {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* Action buttons */
+    .hl-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .btn-hl-cancel {
+      flex: 1;
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--text-muted);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 14px 8px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-hl-submit {
+      flex: 2;
+      font-family: var(--font-pixel);
+      font-size: 7px;
+      color: var(--goal-gold);
+      background: rgba(255, 215, 0, 0.08);
+      border: 1px solid rgba(255, 215, 0, 0.4);
+      border-radius: 4px;
+      padding: 14px 8px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-shadow: 0 0 6px rgba(255, 215, 0, 0.4);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-hl-submit:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    /* Success message */
+    .hl-success {
+      text-align: center;
+      padding: 18px 0 4px;
+    }
+
+    .hl-success-msg {
+      font-family: var(--font-pixel);
+      font-size: 8px;
+      color: var(--success);
+      letter-spacing: 1px;
+      text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+
     /* ── Score highlight on goal ── */
     @keyframes score-pop {
       0%   { transform: scale(1);    }
@@ -311,6 +538,39 @@
         </div>
       </div>
 
+      <!-- Submit highlight -->
+      <div class="highlight-submit-zone">
+        <button id="btn-open-highlight" class="btn-submit-highlight">★ SUBMIT HIGHLIGHT</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Highlight submission modal -->
+  <div id="highlight-modal" class="hl-modal hidden" role="dialog" aria-modal="true" aria-label="Submit highlight">
+    <div class="hl-modal-panel">
+      <div class="hl-modal-title">★ SUBMIT HIGHLIGHT</div>
+      <div class="hl-modal-context" id="hl-modal-context">Mark this moment for clipping</div>
+
+      <div class="hl-section-label">PLAYERS INVOLVED (OPTIONAL)</div>
+      <div class="hl-number-grid" id="hl-number-grid"></div>
+
+      <div class="hl-section-label">WHAT HAPPENED (OPTIONAL)</div>
+      <div class="hl-reasons-grid" id="hl-reasons-grid"></div>
+
+      <div class="hl-section-label">SHORT NOTE (OPTIONAL)</div>
+      <input type="text" id="hl-note" class="hl-note-input"
+             placeholder="e.g. Great save in the top corner" maxlength="120"
+             autocomplete="off" autocorrect="off" autocapitalize="sentences">
+
+      <div class="hl-actions">
+        <button id="btn-hl-cancel" class="btn-hl-cancel">CANCEL</button>
+        <button id="btn-hl-submit" class="btn-hl-submit">★ SUBMIT</button>
+      </div>
+
+      <div class="hl-success hidden" id="hl-success">
+        <div class="hl-success-msg">★ HIGHLIGHT SUBMITTED</div>
+      </div>
     </div>
   </div>
 
@@ -614,6 +874,7 @@
       }
 
       buildTalliesRows();
+      buildHighlightModal();
       startLocalClock();
 
       try {
@@ -651,6 +912,139 @@
       el('error-msg').textContent   = msg;
       el('screen-error').classList.remove('hidden');
     }
+
+    // ── Parent highlight submission ────────────────────────────────────────────
+
+    const HIGHLIGHT_REASONS = ['GOAL', 'SHOT', 'WINDOW', 'SCAN', 'PASS', 'EFFORT', 'DEFENCE', 'OTHER'];
+
+    // ── Roster: update this list when the squad changes ──────────────────────
+    const PLAYER_NUMBERS = [3, 4, 5, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25, 26, 27, 29, 30, 31, 33, 35];
+
+    let selectedPlayers = new Set();
+    let selectedReasons = new Set();
+
+    function buildHighlightModal() {
+      // Player number grid (roster numbers only)
+      const numGrid = el('hl-number-grid');
+      PLAYER_NUMBERS.forEach(num => {
+        const chip = document.createElement('button');
+        chip.className   = 'hl-number-chip';
+        chip.textContent = num;
+        chip.dataset.num = num;
+        chip.addEventListener('click', () => {
+          if (selectedPlayers.has(num)) {
+            selectedPlayers.delete(num);
+            chip.classList.remove('selected');
+          } else {
+            selectedPlayers.add(num);
+            chip.classList.add('selected');
+          }
+        });
+        numGrid.appendChild(chip);
+      });
+
+      // Reason chips
+      const reasonGrid = el('hl-reasons-grid');
+      HIGHLIGHT_REASONS.forEach(r => {
+        const chip = document.createElement('button');
+        chip.className      = 'hl-reason-chip';
+        chip.textContent    = r;
+        chip.dataset.reason = r;
+        chip.addEventListener('click', () => {
+          if (selectedReasons.has(r)) {
+            selectedReasons.delete(r);
+            chip.classList.remove('selected');
+          } else {
+            selectedReasons.add(r);
+            chip.classList.add('selected');
+          }
+        });
+        reasonGrid.appendChild(chip);
+      });
+    }
+
+    /** Return current estimated clock seconds (extrapolated from last server update). */
+    function getCurrentClockSeconds() {
+      if (!game || game.status !== 'live') return game ? (game.clock_seconds || 0) : 0;
+      if (receivedAt === null) return serverClock;
+      return serverClock + Math.floor((Date.now() - receivedAt) / 1000);
+    }
+
+    function openHighlightModal() {
+      // Reset selections
+      selectedPlayers.clear();
+      selectedReasons.clear();
+      document.querySelectorAll('.hl-number-chip, .hl-reason-chip')
+        .forEach(c => c.classList.remove('selected'));
+      el('hl-note').value = '';
+      el('hl-success').classList.add('hidden');
+      el('btn-hl-submit').disabled   = false;
+      el('btn-hl-submit').textContent = '★ SUBMIT';
+
+      // Show current game context in subtitle
+      if (game && game.status === 'live') {
+        const clk = getCurrentClockSeconds();
+        const mm  = String(Math.floor(clk / 60)).padStart(2, '0');
+        const ss  = String(clk % 60).padStart(2, '0');
+        el('hl-modal-context').textContent = `~${mm}:${ss} in ${game.current_period || ''}`;
+      } else {
+        el('hl-modal-context').textContent = 'Mark this moment for clipping';
+      }
+
+      el('highlight-modal').classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeHighlightModal() {
+      el('highlight-modal').classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    async function submitHighlight() {
+      el('btn-hl-submit').disabled   = true;
+      el('btn-hl-submit').textContent = 'SENDING...';
+
+      const player_numbers    = [...selectedPlayers].sort((a, b) => a - b).join('|');
+      const highlight_reasons = [...selectedReasons].join('|');
+      const note              = el('hl-note').value.trim();
+
+      try {
+        const r = await fetch(`/api/games/${gameId}/highlights/parent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            period:                 game ? (game.current_period || '') : '',
+            clock_seconds_estimate: getCurrentClockSeconds(),
+            player_numbers,
+            highlight_reasons,
+            note,
+          }),
+        });
+
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+        // Show success briefly, then close
+        el('hl-success').classList.remove('hidden');
+        el('btn-hl-submit').textContent = '★ SUBMITTED';
+        setTimeout(() => closeHighlightModal(), 2000);
+      } catch (_) {
+        el('btn-hl-submit').disabled   = false;
+        el('btn-hl-submit').textContent = '★ SUBMIT';
+        alert('Could not submit. Please try again.');
+      }
+    }
+
+    // ── Highlight modal event listeners ────────────────────────────────────────
+
+    document.getElementById('btn-open-highlight').addEventListener('click', openHighlightModal);
+    document.getElementById('btn-hl-cancel').addEventListener('click', closeHighlightModal);
+    document.getElementById('btn-hl-submit').addEventListener('click', submitHighlight);
+
+    // Tap the dark backdrop to dismiss
+    document.getElementById('highlight-modal').addEventListener('click', function (e) {
+      if (e.target === this) closeHighlightModal();
+    });
 
     // ── Boot ──────────────────────────────────────────────────────────────────
     init();

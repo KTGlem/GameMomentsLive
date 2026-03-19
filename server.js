@@ -253,6 +253,280 @@ app.get('/api/games/:gameId/stream', (req, res) => {
   });
 });
 
+// ── Highlight: dedupe helpers ─────────────────────────────────────────────────
+
+const HIGHLIGHT_MERGE_WINDOW = 8; // seconds; highlights within ±8s may be the same moment
+
+/**
+ * Union two pipe-delimited strings, deduplicating values.
+ * e.g. unionPipe("7|9", "9|11") => "7|9|11"
+ */
+function unionPipe(a, b) {
+  const vals = new Set([
+    ...(a || '').split('|').filter(Boolean),
+    ...(b || '').split('|').filter(Boolean),
+  ]);
+  return [...vals].join('|');
+}
+
+/**
+ * Find an existing canonical highlight to merge a new submission into.
+ * Returns the canonical record, or null if a new one should be created.
+ *
+ * Merge rules (all must hold):
+ *   1. Same game_id (guaranteed by query)
+ *   2. Clock within ±HIGHLIGHT_MERGE_WINDOW seconds
+ *   3. PLUS at least one of:
+ *      a. Overlapping player number(s)
+ *      b. Overlapping highlight reason(s)
+ *      c. Submission is sparse (no players, no reasons) — typical for logger highlights
+ *      d. Canonical is sparse — allow richer parent submission to attach to it
+ *
+ * The goal is to let a logger tap (sparse) merge with a parent submission (rich)
+ * when they are close in time, even if the logger provided no metadata.
+ */
+function findMergeCandidate(gameId, clockEst, playerNumbers, highlightReasons) {
+  const candidates = db.getCanonicalHighlights(gameId);
+  const subPlayers = (playerNumbers || '').split('|').filter(Boolean);
+  const subReasons = (highlightReasons || '').split('|').filter(Boolean);
+  const isSparse   = subPlayers.length === 0 && subReasons.length === 0;
+
+  for (const c of candidates) {
+    // Must be within the merge time window
+    const timeDiff = Math.abs(c.clock_seconds_estimate - clockEst);
+    if (timeDiff > HIGHLIGHT_MERGE_WINDOW) continue;
+
+    const canPlayers = (c.player_numbers || '').split('|').filter(Boolean);
+    const canReasons = (c.highlight_reasons || '').split('|').filter(Boolean);
+    const canSparse  = canPlayers.length === 0 && canReasons.length === 0;
+
+    const playerOverlap = subPlayers.some(p => canPlayers.includes(p));
+    const reasonOverlap = subReasons.some(r => canReasons.includes(r));
+
+    // Merge if metadata overlaps, or if either side has no metadata to compare
+    if (playerOverlap || reasonOverlap || isSparse || canSparse) {
+      return c;
+    }
+  }
+  return null;
+}
+
+/**
+ * Process a highlight submission: find or create a canonical highlight,
+ * then link the submission to it. Returns the canonical record.
+ */
+function processHighlightSubmission(submission) {
+  const {
+    submission_id, game_id, source_role, period,
+    clock_seconds_estimate, player_numbers, highlight_reasons, note,
+  } = submission;
+
+  const ts  = new Date().toISOString();
+  const clk = clock_seconds_estimate;
+
+  const match = findMergeCandidate(game_id, clk, player_numbers, highlight_reasons);
+
+  let canonicalId;
+
+  if (match) {
+    // ── Merge into existing canonical ──────────────────────────────────────
+    canonicalId = match.highlight_id;
+    db.updateCanonicalHighlight(canonicalId, {
+      source_roles:      unionPipe(match.source_roles, source_role),
+      player_numbers:    unionPipe(match.player_numbers, player_numbers),
+      highlight_reasons: unionPipe(match.highlight_reasons, highlight_reasons),
+      vote_count:        match.vote_count + 1,
+      // Simple note merge: append new note if provided
+      note_summary: match.note_summary
+        ? (note ? `${match.note_summary} | ${note}` : match.note_summary)
+        : (note || ''),
+    });
+  } else {
+    // ── Create new canonical highlight ─────────────────────────────────────
+    canonicalId = `hl_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    db.createCanonicalHighlight({
+      highlight_id:           canonicalId,
+      game_id,
+      period,
+      clock_seconds_estimate: clk,
+      clip_start:             Math.max(0, clk - 8),   // default: 8s before moment
+      clip_end:               clk + 12,                // default: 12s after moment
+      source_roles:           source_role,
+      player_numbers:         player_numbers || '',
+      highlight_reasons:      highlight_reasons || '',
+      vote_count:             1,
+      note_summary:           note || '',
+      created_at:             ts,
+      updated_at:             ts,
+    });
+  }
+
+  // Link the raw submission to its canonical highlight
+  db.linkSubmissionToCanonical(submission_id, canonicalId);
+
+  return db.getCanonicalHighlight(canonicalId);
+}
+
+// ── Highlight: logger submits (logger token only) ─────────────────────────────
+
+app.post('/api/games/:gameId/highlights/logger', (req, res) => {
+  const { gameId } = req.params;
+  const { token, period, clock_seconds_estimate, note } = req.body;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token) return res.status(403).json({ error: 'invalid token' });
+
+  const clk = typeof clock_seconds_estimate === 'number'
+    ? clock_seconds_estimate
+    : (game.clock_seconds || 0);
+
+  const submission = {
+    submission_id:          `sub_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    game_id:                gameId,
+    source_role:            'logger',
+    period:                 period || game.current_period || '',
+    clock_seconds_estimate: clk,
+    player_numbers:         '',   // logger highlights carry no player/reason metadata
+    highlight_reasons:      '',
+    note:                   (note || '').trim(),
+    created_at:             new Date().toISOString(),
+  };
+
+  db.createHighlightSubmission(submission);
+  const canonical = processHighlightSubmission(submission);
+
+  res.json({ submission, canonical });
+});
+
+// ── Highlight: parent submits (viewer token only) ─────────────────────────────
+
+app.post('/api/games/:gameId/highlights/parent', (req, res) => {
+  const { gameId } = req.params;
+  const { token, period, clock_seconds_estimate, player_numbers, highlight_reasons, note } = req.body;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.viewer_token) return res.status(403).json({ error: 'invalid token' });
+
+  // Normalise pipe-delimited fields; also accept plain arrays from the client
+  function normPipe(val) {
+    if (!val) return '';
+    if (Array.isArray(val)) return val.map(String).filter(Boolean).join('|');
+    return String(val).split('|').map(s => s.trim()).filter(Boolean).join('|');
+  }
+
+  const clk = typeof clock_seconds_estimate === 'number'
+    ? clock_seconds_estimate
+    : (game.clock_seconds || 0);
+
+  const submission = {
+    submission_id:          `sub_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    game_id:                gameId,
+    source_role:            'parent',
+    period:                 period || game.current_period || '',
+    clock_seconds_estimate: clk,
+    player_numbers:         normPipe(player_numbers),
+    highlight_reasons:      normPipe(highlight_reasons),
+    note:                   (note || '').trim(),
+    created_at:             new Date().toISOString(),
+  };
+
+  db.createHighlightSubmission(submission);
+  const canonical = processHighlightSubmission(submission);
+
+  res.json({ submission, canonical });
+});
+
+// ── Highlight: fetch canonical highlights (both tokens) ───────────────────────
+
+app.get('/api/games/:gameId/highlights', (req, res) => {
+  const { gameId } = req.params;
+  const { token } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const highlights = db.getCanonicalHighlights(gameId);
+  res.json({ highlights });
+});
+
+// ── Highlight: fetch raw submissions (both tokens) ────────────────────────────
+
+app.get('/api/games/:gameId/highlights/submissions', (req, res) => {
+  const { gameId } = req.params;
+  const { token } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const submissions = db.getHighlightSubmissions(gameId);
+  res.json({ submissions });
+});
+
+// ── Export: canonical highlights as CSV (both tokens) ─────────────────────────
+
+app.get('/api/games/:gameId/export/highlights.csv', (req, res) => {
+  const { gameId } = req.params;
+  const { token } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const highlights = db.getCanonicalHighlights(gameId);
+  const cols = [
+    'highlight_id', 'game_id', 'period', 'clock_seconds_estimate',
+    'clip_start', 'clip_end', 'source_roles', 'player_numbers',
+    'highlight_reasons', 'vote_count', 'note_summary', 'created_at', 'updated_at',
+  ];
+
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows   = [cols.join(',')];
+  for (const h of highlights) rows.push(cols.map(c => csvEsc(h[c])).join(','));
+
+  const filename = `highlights_${gameId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(rows.join('\r\n'));
+});
+
+// ── Export: raw highlight submissions as CSV (both tokens) ────────────────────
+
+app.get('/api/games/:gameId/export/submissions.csv', (req, res) => {
+  const { gameId } = req.params;
+  const { token } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const submissions = db.getHighlightSubmissions(gameId);
+  const cols = [
+    'submission_id', 'game_id', 'source_role', 'period', 'clock_seconds_estimate',
+    'player_numbers', 'highlight_reasons', 'note', 'canonical_highlight_id', 'created_at',
+  ];
+
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows   = [cols.join(',')];
+  for (const s of submissions) rows.push(cols.map(c => csvEsc(s[c])).join(','));
+
+  const filename = `submissions_${gameId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(rows.join('\r\n'));
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
