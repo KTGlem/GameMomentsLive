@@ -6,6 +6,7 @@ const path = require('path');
 const db = require('./db');
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -92,10 +93,10 @@ app.get('/api/games', (req, res) => {
     created_at: g.created_at,
     logger_url: `${origin}/logger.html?gameId=${g.game_id}&token=${g.logger_token}`,
     scoreboard_url: `${origin}/scoreboard.html?gameId=${g.game_id}&token=${g.viewer_token}`,
-    events_csv_url: `${origin}/api/games/${g.game_id}/export/events.csv?token=${g.logger_token}`,
-    highlights_csv_url: `${origin}/api/games/${g.game_id}/export/highlights.csv?token=${g.logger_token}`,
-    events_adj_base_url: `${origin}/api/games/${g.game_id}/export/events_adjusted.csv?token=${g.logger_token}`,
-    highlights_adj_base_url: `${origin}/api/games/${g.game_id}/export/highlights_adjusted.csv?token=${g.logger_token}`,
+    events_csv_url: `/api/games/${g.game_id}/export/events.csv?token=${g.logger_token}`,
+    highlights_csv_url: `/api/games/${g.game_id}/export/highlights.csv?token=${g.logger_token}`,
+    events_adj_base_url: `/api/games/${g.game_id}/export/events_adjusted.csv?token=${g.logger_token}`,
+    highlights_adj_base_url: `/api/games/${g.game_id}/export/highlights_adjusted.csv?token=${g.logger_token}`,
   }));
   res.json(result);
 });
