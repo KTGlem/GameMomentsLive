@@ -308,8 +308,84 @@
       color: var(--opp);
     }
 
+    .game-link-btn.export-events {
+      background: rgba(0, 255, 136, 0.05);
+      border-color: rgba(0, 255, 136, 0.4);
+      color: var(--success);
+    }
+
+    .game-link-btn.export-highlights {
+      background: rgba(255, 204, 0, 0.05);
+      border-color: rgba(255, 204, 0, 0.4);
+      color: var(--goal-gold);
+    }
+
+    .game-link-btn.export-adj-events {
+      background: rgba(0, 255, 136, 0.1);
+      border-color: rgba(0, 255, 136, 0.7);
+      color: var(--success);
+    }
+
+    .game-link-btn.export-adj-highlights {
+      background: rgba(255, 204, 0, 0.1);
+      border-color: rgba(255, 204, 0, 0.7);
+      color: var(--goal-gold);
+    }
+
     .game-link-btn:hover {
       opacity: 0.8;
+    }
+
+    .offset-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .offset-section-label {
+      font-family: var(--font-pixel);
+      font-size: 5px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .offset-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .offset-field {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .offset-field label {
+      font-family: var(--font-pixel);
+      font-size: 5px;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 0;
+    }
+
+    .offset-input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 5px 8px;
+      color: var(--text);
+      font-family: var(--font-vt);
+      font-size: 18px;
+      outline: none;
+      width: 100%;
+      color-scheme: dark;
+    }
+
+    .offset-input:focus {
+      border-color: var(--pfc);
     }
 
     .empty-state {
@@ -457,6 +533,24 @@
       });
     });
 
+    // ── Adjusted CSV downloads ────────────────────────────────────────────────
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-adj]');
+      if (!btn) return;
+      e.preventDefault();
+      const row = btn.closest('.game-row');
+      const h1 = encodeURIComponent(row.querySelector('.h1-offset').value || '0');
+      const h2 = encodeURIComponent(row.querySelector('.h2-offset').value || '0');
+      const base = btn.dataset.adj === 'events' ? row.dataset.eventsAdj : row.dataset.highlightsAdj;
+      const a = document.createElement('a');
+      a.href = `${base}&h1Offset=${h1}&h2Offset=${h2}`;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+
     // ── Load games list ───────────────────────────────────────────────────────
 
     async function loadGames() {
@@ -477,7 +571,7 @@
             ? `<div class="game-score">${g.score_pfc} — ${g.score_opp}</div>`
             : '';
           return `
-            <div class="game-row">
+            <div class="game-row" data-events-adj="${esc(g.events_adj_base_url)}" data-highlights-adj="${esc(g.highlights_adj_base_url)}">
               <div class="game-row-header">
                 <div class="game-teams">
                   <span class="team-pfc">${esc(g.team_name)}</span>
@@ -491,6 +585,25 @@
               <div class="game-links">
                 <a href="${esc(g.logger_url)}" target="_blank" class="game-link-btn logger">LOGGER</a>
                 <a href="${esc(g.scoreboard_url)}" target="_blank" class="game-link-btn scoreboard">SCOREBOARD</a>
+                <a href="${esc(g.events_csv_url)}" download class="game-link-btn export-events">↓ EVENTS CSV</a>
+                <a href="${esc(g.highlights_csv_url)}" download class="game-link-btn export-highlights">↓ HIGHLIGHTS CSV</a>
+              </div>
+              <div class="offset-section">
+                <div class="offset-section-label">VIDEO OFFSET (seconds)</div>
+                <div class="offset-row">
+                  <div class="offset-field">
+                    <label>H1 OFFSET</label>
+                    <input type="number" class="offset-input h1-offset" value="0" placeholder="0">
+                  </div>
+                  <div class="offset-field">
+                    <label>H2 OFFSET</label>
+                    <input type="number" class="offset-input h2-offset" value="0" placeholder="0">
+                  </div>
+                </div>
+                <div class="game-links">
+                  <a href="#" class="game-link-btn export-adj-events" data-adj="events">↓ ADJ EVENTS CSV</a>
+                  <a href="#" class="game-link-btn export-adj-highlights" data-adj="highlights">↓ ADJ HIGHLIGHTS CSV</a>
+                </div>
               </div>
             </div>`;
         }).join('');

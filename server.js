@@ -92,6 +92,10 @@ app.get('/api/games', (req, res) => {
     created_at: g.created_at,
     logger_url: `${origin}/logger.html?gameId=${g.game_id}&token=${g.logger_token}`,
     scoreboard_url: `${origin}/scoreboard.html?gameId=${g.game_id}&token=${g.viewer_token}`,
+    events_csv_url: `${origin}/api/games/${g.game_id}/export/events.csv?token=${g.logger_token}`,
+    highlights_csv_url: `${origin}/api/games/${g.game_id}/export/highlights.csv?token=${g.logger_token}`,
+    events_adj_base_url: `${origin}/api/games/${g.game_id}/export/events_adjusted.csv?token=${g.logger_token}`,
+    highlights_adj_base_url: `${origin}/api/games/${g.game_id}/export/highlights_adjusted.csv?token=${g.logger_token}`,
   }));
   res.json(result);
 });
@@ -494,6 +498,113 @@ app.get('/api/games/:gameId/export/highlights.csv', (req, res) => {
   for (const h of highlights) rows.push(cols.map(c => csvEsc(h[c])).join(','));
 
   const filename = `highlights_${gameId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(rows.join('\r\n'));
+});
+
+// ── Export: game events as CSV (both tokens) ──────────────────────────────────
+
+app.get('/api/games/:gameId/export/events.csv', (req, res) => {
+  const { gameId } = req.params;
+  const { token } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const events = db.getEvents(gameId);
+  const cols = [
+    'event_id', 'game_id', 'sequence_number', 'period',
+    'clock_seconds', 'event_code', 'created_at', 'source_role',
+  ];
+
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows   = [cols.join(',')];
+  for (const e of events) rows.push(cols.map(c => csvEsc(e[c])).join(','));
+
+  const filename = `events_${gameId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(rows.join('\r\n'));
+});
+
+// ── Export: adjusted events CSV (both tokens) ─────────────────────────────────
+
+app.get('/api/games/:gameId/export/events_adjusted.csv', (req, res) => {
+  const { gameId } = req.params;
+  const { token, h1Offset, h2Offset } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const h1 = parseFloat(h1Offset) || 0;
+  const h2 = parseFloat(h2Offset) || 0;
+
+  const events = db.getEvents(gameId);
+  const cols = [
+    'event_id', 'game_id', 'sequence_number', 'period',
+    'clock_seconds', 'event_code', 'created_at', 'source_role',
+    'video_offset_seconds', 'adjusted_video_seconds',
+  ];
+
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [cols.join(',')];
+  for (const e of events) {
+    const offset = e.period === 'H1' ? h1 : e.period === 'H2' ? h2 : 0;
+    const row = { ...e, video_offset_seconds: offset, adjusted_video_seconds: e.clock_seconds + offset };
+    rows.push(cols.map(c => csvEsc(row[c])).join(','));
+  }
+
+  const filename = `events_adjusted_${gameId}_${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(rows.join('\r\n'));
+});
+
+// ── Export: adjusted highlights CSV (both tokens) ─────────────────────────────
+
+app.get('/api/games/:gameId/export/highlights_adjusted.csv', (req, res) => {
+  const { gameId } = req.params;
+  const { token, h1Offset, h2Offset } = req.query;
+
+  const game = db.getGame(gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (token !== game.logger_token && token !== game.viewer_token) {
+    return res.status(403).json({ error: 'invalid token' });
+  }
+
+  const h1 = parseFloat(h1Offset) || 0;
+  const h2 = parseFloat(h2Offset) || 0;
+
+  const highlights = db.getCanonicalHighlights(gameId);
+  const cols = [
+    'highlight_id', 'game_id', 'period', 'clock_seconds_estimate',
+    'clip_start', 'clip_end', 'source_roles', 'player_numbers',
+    'highlight_reasons', 'vote_count', 'note_summary', 'created_at', 'updated_at',
+    'adjusted_clock_seconds_estimate', 'adjusted_clip_start', 'adjusted_clip_end',
+  ];
+
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const rows = [cols.join(',')];
+  for (const h of highlights) {
+    const offset = h.period === 'H1' ? h1 : h.period === 'H2' ? h2 : 0;
+    const adjClock = h.clock_seconds_estimate + offset;
+    const row = {
+      ...h,
+      adjusted_clock_seconds_estimate: adjClock,
+      adjusted_clip_start: Math.max(0, adjClock - 10),
+      adjusted_clip_end: adjClock + 2,
+    };
+    rows.push(cols.map(c => csvEsc(row[c])).join(','));
+  }
+
+  const filename = `highlights_adjusted_${gameId}_${new Date().toISOString().slice(0, 10)}.csv`;
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(rows.join('\r\n'));
