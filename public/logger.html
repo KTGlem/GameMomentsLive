@@ -44,17 +44,19 @@
 
     .btn-hl-logger {
       font-family: var(--font-pixel);
-      font-size: 7px;
+      font-size: 10px;
       color: var(--goal-gold);
-      background: transparent;
-      border: 1px solid rgba(255, 215, 0, 0.35);
-      border-radius: 3px;
-      padding: 5px 7px;
+      background: rgba(255, 215, 0, 0.07);
+      border: 2px solid rgba(255, 215, 0, 0.5);
+      border-radius: 5px;
+      padding: 10px 14px;
+      min-height: 48px;
       cursor: pointer;
-      letter-spacing: 0.5px;
-      text-shadow: 0 0 6px rgba(255, 215, 0, 0.35);
+      letter-spacing: 1px;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
       flex-shrink: 0;
-      transition: background 0.1s, border-color 0.1s;
+      transition: background 0.1s, border-color 0.1s, box-shadow 0.1s;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
@@ -62,16 +64,24 @@
     .btn-hl-logger:disabled {
       opacity: 0.25;
       cursor: default;
+      box-shadow: none;
     }
 
     .btn-hl-logger:not(:disabled):active {
-      background: rgba(255, 215, 0, 0.15);
+      background: rgba(255, 215, 0, 0.20);
+      border-color: var(--goal-gold);
       transform: scale(0.93);
     }
 
     .btn-hl-logger.hl-saved {
-      background: rgba(255, 215, 0, 0.2);
+      background: rgba(255, 215, 0, 0.25);
       border-color: var(--goal-gold);
+      box-shadow: 0 0 14px rgba(255, 215, 0, 0.4);
+    }
+
+    /* Hide opponent text in logger header — score row shows team names */
+    #header-opponent {
+      display: none;
     }
 
     /* Offline queue indicator */
